@@ -34,7 +34,7 @@ kolom "usulan" hanya saran, keputusan di Anda.**
 
 | # | Patch | Status alat | Usulan klasifikasi | Catatan singkat |
 |---|---|---|---|---|
-| 3 | cores_per_package 13.3+ | PLAUSIBLE | **SUSPICIOUS** | Lokasi benar, tetapi `Replace` = `ba 00 00 00 00` (core count **0**, bukan 06). Lihat §5. |
+| 3 | cores_per_package 13.3+ | PLAUSIBLE | MATCH-ONLY → lokasi benar | `Replace` bawaan = `ba 00 00 00 00` (template; harus diisi pengguna, sudah 06 di work/live). Lihat §5. |
 | 4 | `_commpage_populate` rdmsr | PLAUSIBLE | VERIFIED | commpage.c:393-395. Efek samping: `and eax,1` memakai sisa `eax` (leaf7 ebx bit0). |
 | 5 | `cpuid_set_cache_info` leaf 4 → 0x8000001d | PLAUSIBLE | VERIFIED | cpuid.c:385 |
 | 6 | wrmsr 0x8B | PLAUSIBLE | VERIFIED | cpuid.c:659 |
@@ -115,7 +115,7 @@ Semua keempat patch di laobamac identik dengan upstream (nilai `Replace` core co
 | 2 | 21.0.0–22.3.99 | `ba **00** 00 00 00 90` | `06` |
 | 3 | 22.4.0–25.99.99 (**berlaku di Darwin 25**) | `ba **00** 00 00 00` | `06` |
 
-Jadi **belum 06** di laobamac maupun upstream. Dipakai apa adanya, `cpuid_cores_per_package = 0` lalu di-reset ke 1 oleh
+Nilai `00` adalah **template bawaan** ("user-specified"), bukan cacat patch; pengguna menyesuaikannya ke 06 untuk Ryzen 5 4500. Dipakai tanpa disesuaikan, `cpuid_cores_per_package = 0` lalu di-reset ke 1 oleh
 `cpuid.c:489-490`. Perubahan nilai (tugas 5, hanya `Replace`, bukan `Find`/`Mask`) belum dilakukan.
 
 ## 6. PAT (patch 25/26): lokasi benar, nilai berbeda dari source

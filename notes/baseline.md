@@ -15,9 +15,9 @@ Daftar Comment/rentang/Find/Mask/Replace/ReplaceMask/Base/Count/Identifier ident
 
 | Patch | live | laobamac |
 |---|---|---|
-| Core count (4 entri) | Replace byte core count = `06` (`b8 06…`, `ba 06…`, `ba 06…90`, `ba 06 00 00 00`) | `00` |
-| PAT `algrey | … | 10.13+` dan `Algrey / Zormeister | … | 15.0+` | **Enabled=false** | true |
-| PAT `Shaneee | … | 10.13+` dan `Shaneee / Zormeister | … | 15.0+` | **Enabled=true** | false |
+| Core count (4 entri) | Replace byte core count = `06`, disesuaikan pengguna dengan Ryzen 5 4500 (`b8 06…`, `ba 06…`, `ba 06…90`, `ba 06 00 00 00`) | `00` = nilai bawaan/template "user-specified" (sama dengan upstream), bukan cacat |
+| PAT `algrey | … | 10.13+` dan `Algrey / Zormeister | … | 15.0+` | Enabled=false | true (bawaan) |
+| PAT `Shaneee | … | 10.13+` dan `Shaneee / Zormeister | … | 15.0+` | Enabled=true, **pilihan sengaja pengguna** | false (bawaan) |
 
 Patch kext live = persis laobamac: `probeBusGated 12.0-15.x` (Darwin 21.0.0–24.99.99) dan `probeBusGated 26.0+` (25.0.0–25.99.99, `Find e0 11 73 40`, `Replace 00 00 02 00`), keduanya Enabled; `IOPCIIsHotplugPort` (AM5) Enabled=false.
 Patch 10 (leaf7) dan 14 (Base `'_cpuid_set_info '` berspasi) ada dan aktif, tidak diubah.
@@ -56,7 +56,7 @@ Akibat BOOT-OK pada patch bermasalah: patch 14 (NO-BASE) dan patch 10 (kemungkin
 
 1. **probeBusGated**: ganti entri upstream tunggal dengan dua entri laobamac (disalin manual, bukan merge), sama dengan live. Alasan: live boot dengan itu; entri upstream `12.0+` memakai `e0 11 72 00 → 00 00 03 00` untuk seluruh Darwin 21–25, sedangkan laobamac memisahkan 26.0+ ke `e0 11 73 40 → 00 00 02 00`.
    Keterbatasan: **tidak bisa diverifikasi statis** (kext IOPCIFamily bukan kernel; tak ada salinannya di `kernels/`; aturan 2 hanya mengizinkan membaca `/System/Library/Kernels/kernel`). Status akan NOT-KERNEL + BOOT-OK, bukan VERIFIED. Bila Anda mau diverifikasi, salin binary kext (atau KC) ke folder repo dan beri tahu saya.
-2. **PAT**: set live memakai **Shaneee**, work.plist algrey (keputusan sebelumnya: algrey default). Ini keputusan Anda (aturan 9): (a) ikuti live (Shaneee aktif, BOOT-OK), atau (b) tetap algrey (belum pernah boot di hardware). Keduanya PLAUSIBLE secara statis.
+2. **PAT**: pengguna memilih **Shaneee** dengan sengaja (default algrey), dan set itu sudah boot (BOOT-OK). `work.plist` masih algrey dari keputusan awal; selisih ini hanya tertinggal, bukan ketidaksengajaan di live. Usulan: samakan `work.plist` dengan live (Shaneee aktif, algrey nonaktif) bila Anda setuju. Keduanya PLAUSIBLE secara statis.
 3. **IOPCIIsHotplugPort (AM5)**: nonaktif di live dan work; tidak diubah.
 4. **Patch 14**: tidak diubah; NO-BASE tetap sampai ada log debug OpenCore. **Patch 10**: tidak diubah.
 5. Setelah keputusan 1–2, `verify.py --plist work/work.plist` seharusnya menunjukkan set yang sama dengan live (kecuali pilihan PAT).
@@ -64,4 +64,4 @@ Akibat BOOT-OK pada patch bermasalah: patch 14 (NO-BASE) dan patch 10 (kemungkin
 ## 5. Langkah yang membutuhkan Anda
 - Log debug OpenCore (build DEBUG/`Target` log ke file) untuk: patch 14 (apakah dilewati), patch 10, dan kedua patch probeBusGated.
 - Versi OpenCore yang dipakai (belum tercatat).
-- Keputusan usulan 1 dan 2.
+- Keputusan usulan 1 dan 2 (untuk 2: cukup konfirmasi bahwa `work.plist` boleh disamakan dengan live).
