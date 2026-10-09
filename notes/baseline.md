@@ -56,7 +56,7 @@ Akibat BOOT-OK pada patch bermasalah: patch 14 (NO-BASE) dan patch 10 (kemungkin
 
 Setelah usulan 1 (`fix(pci)`) dan 2 (`feat(pat)`) diterapkan, `work/work.plist` sama persis dengan set live (27 patch, tidak ada selisih). Teks usulan di bawah dipertahankan sebagai catatan alasan.
 
-1. **probeBusGated**: ganti entri upstream tunggal dengan dua entri laobamac (disalin manual, bukan merge), sama dengan live. Alasan: live boot dengan itu; entri upstream `12.0+` memakai `e0 11 72 00 → 00 00 03 00` untuk seluruh Darwin 21–25, sedangkan laobamac memisahkan 26.0+ ke `e0 11 73 40 → 00 00 02 00`.
+1. **probeBusGated**: ganti entri upstream tunggal dengan dua entri yang sama dengan `upstream/beta` (AMD-OSX resmi, 2025-06-27) dan laobamac (disalin manual, bukan merge), sama dengan live. Alasan: live boot dengan itu; entri upstream `12.0+` memakai `e0 11 72 00 → 00 00 03 00` untuk seluruh Darwin 21–25, sedangkan laobamac memisahkan 26.0+ ke `e0 11 73 40 → 00 00 02 00`.
    Keterbatasan: **tidak bisa diverifikasi statis** (kext IOPCIFamily bukan kernel; tak ada salinannya di `kernels/`; aturan 2 hanya mengizinkan membaca `/System/Library/Kernels/kernel`). Status akan NOT-KERNEL + BOOT-OK, bukan VERIFIED. Bila Anda mau diverifikasi, salin binary kext (atau KC) ke folder repo dan beri tahu saya.
 2. **PAT**: pengguna memilih **Shaneee** dengan sengaja (default algrey), dan set itu sudah boot (BOOT-OK). `work.plist` masih algrey dari keputusan awal; selisih ini hanya tertinggal, bukan ketidaksengajaan di live. Usulan: samakan `work.plist` dengan live (Shaneee aktif, algrey nonaktif) bila Anda setuju. Keduanya PLAUSIBLE secara statis.
 3. **IOPCIIsHotplugPort (AM5)**: nonaktif di live dan work; tidak diubah.

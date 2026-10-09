@@ -64,6 +64,12 @@ Pindai `cpuid` (leaf dari `mov eax,imm`) dan instruksi khusus di `__TEXT,__text`
   `kpc_x86.c:77-120` menghitung jumlah counter dari field yang sama (=0). Jadi counter Intel tidak tersedia/tidak dipakai; kperf/Instruments tidak akan menyentuh MSR itu (pengamatan runtime + source; tidak diuji dengan menjalankan kperf).
 Tidak ada kandidat baru. Pengamatan runtime: `notes/runtime-observations.md`.
 
+## Cabang lain di repo upstream/laobamac (data pihak ketiga; hanya dibaca)
+- `upstream/beta` (AMD-OSX resmi, `ea053f1`, 2025-06-27, PR #212) **sudah memuat pemecahan `probeBusGated`** (12.0-15.x dan 26.0+) yang identik dengan versi laobamac. Jadi asal entri itu adalah upstream beta, bukan karya laobamac
+  (laobamac/beta sama dengan upstream/beta). Entri non-monotonic 26.4+ memang hanya ada di laobamac/master.
+- `upstream/clover` (`f145876`, 2025-12-07, #214): format Clover (fragmen plist, tidak bisa diparse plistlib). Keluarga patch sama dengan versi OpenCore; **tidak ada patch tambahan**. Pengamatan: patch `thread_invoke, thread_dispatch` di Clover masih satu entri `12.0+`
+  (tanpa perbaikan 26.4), dan `_commpage_populate` hanya untuk `10.13–14.x` (tidak untuk 15/26); di kernel ini `rdmsr 0x1a0` di commpage ada di belakang cek ERMS yang bernilai benar di Zen 2, jadi entri OpenCore `10.13+` tetap relevan (analisis statis, belum dites).
+
 ## Kesimpulan
 - Dari pindaian ini **tidak ada kandidat patch baru yang terbukti perlu di jalur boot**; set yang ada (4–8, 12, 14, 15, 16, 20, 22, PAT, core count) menutup situs Intel-only yang terlihat, dengan dua ketergantungan di luar plist
   (`ProvideCurrentCpuInfo` untuk `_tsc_init`; status patch 14).
