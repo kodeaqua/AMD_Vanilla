@@ -20,6 +20,12 @@ Build: `xnu-12377.161.15.700.19`. Source acuan: `xnu-12377.121.6`.
   Maksud asli patch 10 **tidak punya padanan** di Tahoe, dan patch yang ada kemungkinan inert di Ryzen 5 4500 (bukan bukti: kernel yang sedang berjalan mungkin sudah dipatch).
   `sysctl machdep.cpu.leaf7_features` terisi (`RDWRFSGS BMI1 AVX2 …`), konsisten dengan leaf 7 terbaca, tetapi tidak membuktikan patch 10 tidak diperlukan.
 
+## Hasil riset lanjutan (2026-10-09)
+- Grep source `xnu-12377.121.6`: tidak ada gerbang `cpuid_model` untuk leaf 7 (`cpuid_model >=`/`<` tidak ditemukan di `osfmk/i386/*.c`). Pemakai `cpuid_leaf7_features`: `fpu.c:493` (AVX512F), `cpuid.c:980` (subset
+  x86_64h `CPUID_X86_64_H_LEAF7_FEATURE_SUBSET`), `cpuid.c:1577` (RTM). Semuanya bergantung pada isi leaf 7 yang hanya terisi lewat gerbang `max_basic >= 7` (`cpuid.c:849`).
+- Jadi tidak ada gerbang lain di source yang memblokir leaf 7 di AMD pada Darwin 25; hipotesis gerbang model Ivy Bridge (patch lama) tidak punya padanan. Item riset pertama (cari gerbang lain) = **tidak ditemukan di source**; binary belum dipindai ulang untuk gerbang tanpa padanan source.
+- Rekomendasi (keputusan tetap di pengguna): patch 10 kemungkinan dapat dinonaktifkan; buktikan dengan uji boot on/off + log OpenCore.
+
 ## Daftar riset (tugas 4)
 - [ ] Uji hardware: boot dengan patch 10 aktif vs nonaktif, bandingkan `sysctl machdep.cpu.leaf7_features` dan `max_basic`.
 - [ ] Cari tahu apakah ada gerbang lain yang memblokir leaf 7 di AMD pada Darwin 25 (mis. pemakai `cpuid_leaf7_features()` di commpage/`cpuid_set_cpufamily`).

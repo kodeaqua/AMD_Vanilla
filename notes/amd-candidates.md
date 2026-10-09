@@ -45,6 +45,15 @@ Catatan: `_vmx_hv_support` dan `_kperf_lazy_wait_sample` pernah tersentuh patch 
   Pemilihan tabel di `_rtc_timer_init` (`0x…3ebca6`): `call cpuid_features; bt rax,0x38 (CPUID_FEATURE_TSCTMR); jae` ke jalur non-deadline — sama dengan source `rtclock_native.c:171`.
   `sysctl machdep.cpu.features` di mesin ini tidak memuat TSCTMR ⇒ jalur LAPIC-timer biasa; MSR 0x6e0 tidak ditulis. Terjaga.
 
+## Efek samping patch 15 pada `_kernel_debug_early` (analisis binary)
+`_kernel_debug_early` (`0x…77f370`): `cmp [flag],0; je lanjut` (jika sudah selesai: `ret`); bila belum, hanya merekam bila indeks < 0x100 (`cmp rax,0x100; setae; jae ret`) dan hanya di CPU boot (`cmp cpu_number,[boot_cpu]; jne ret`),
+menulis debugid + 4 argumen ke buffer statis berisi 256 entri × 64 byte (`shl rax,6`). Jalur lain (`kdebug` aktif) menuju `_kernel_debug` biasa. Jadi register sisa (debugid/argumen sampah, karena `mov edi,0x5310258; xor ecx; xor r8d` ikut di-NOP)
+hanya menghasilkan paling banyak 256 entri trace awal yang tidak bermakna; penulisan dibatasi. Tidak terlihat risiko crash dari analisis ini (belum dites). Pemanggil rel32 langsung `_pstate_trace`: tidak ada.
+
+## Pemeriksaan lain (2026-10-09)
+- Tag source XNU terbaru: `git ls-remote` menunjukkan tag tertinggi tetap `xnu-12377.121.6` (`ac9718f`), sama dengan `xnu/`. Tidak ada tag baru untuk `xnu-12377.161.15.700.19`.
+- `ocvalidate` tidak ada di mesin ini (`which ocvalidate` kosong); langkah `ocvalidate` belum bisa dijalankan sampai paket OpenCore disalin ke repo (dilakukan pengguna).
+
 ## Kesimpulan
 - Dari pindaian ini **tidak ada kandidat patch baru yang terbukti perlu di jalur boot**; set yang ada (4–8, 12, 14, 15, 16, 20, 22, PAT, core count) menutup situs Intel-only yang terlihat, dengan dua ketergantungan di luar plist
   (`ProvideCurrentCpuInfo` untuk `_tsc_init`; status patch 14).

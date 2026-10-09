@@ -42,8 +42,8 @@ Yang tidak berlaku di Darwin 25 (N/A): indeks 0–2, 9, 11, 13, 17, 21, 23, 24. 
 1. Log debug OpenCore (+ versi OpenCore): bukti patch 14 dan 10 benar-benar terpasang (probeBusGated ditunda).
 2. ~~Binary IOPCIFamily untuk `probeBusGated`~~ — DITUNDA atas permintaan pengguna (2026-10-09); tetap NOT-KERNEL + BOOT-OK, tidak dikerjakan sekarang.
 3. Tes hardware per patch dan catat (normal/hang/panic) di `notes/`.
-4. Riset patch 10: cari tahu apakah ada gerbang leaf 7 lain di AMD pada Darwin 25; usul nonaktifkan bila tidak perlu.
-5. Patch 15: analisis `_kernel_debug_early` dengan argumen sampah.
+4. Riset patch 10: source tidak punya gerbang leaf 7 lain selain `max_basic >= 7` (lihat `cpuid-leaf7.md`); tinggal uji boot on/off + log OpenCore. Usulan: nonaktifkan bila terbukti tidak perlu (keputusan pengguna).
+5. ~~Patch 15: analisis `_kernel_debug_early`~~ — selesai: paling banyak 256 entri trace awal sampah, tidak ada risiko crash terlihat (`amd-candidates.md`).
 6. `ocvalidate` pada config yang memuat patch (langkah 5 alur kerja) belum dijalankan; butuh paket OpenCore.
 7. Cek ulang tag source XNU baru (`git ls-remote … rel/xnu-12377`) dan ulang `verify.py` bila build kernel berubah.
 
