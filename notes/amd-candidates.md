@@ -57,9 +57,11 @@ hanya menghasilkan paling banyak 256 entri trace awal yang tidak bermakna; penul
 ## Pindaian kedua: leaf CPUID dan instruksi khusus (2026-10-09)
 Pindai `cpuid` (leaf dari `mov eax,imm`) dan instruksi khusus di `__TEXT,__text`:
 - Leaf yang dipakai: 0x0,0x1,0x2,0x4,0x5,0x6,0x7,0xa,0xd,0x15, 0x80000000–8/6/7/8, plus leaf VMM 0x40000000/1/10. **Leaf 0xB/0x1F (topologi) tidak dipakai** ⇒ tidak ada masalah topologi AMD di jalur ini.
-- Leaf 0x15 (TSC/crystal Intel) hanya dibaca bila `max_basic >= 0x15`; mesin ini 16, jadi dilewati (gerbang `cpuid.c:865`). Leaf 0xa (arch perfmon) dipakai dan AMD mengembalikan nilai tak bermakna; dampak ke `_cpc_*` (rdpmc ×31) belum ditelusuri (hanya saat kperf dipakai).
+- Leaf 0x15 (TSC/crystal Intel) hanya dibaca bila `max_basic >= 0x15`; mesin ini 16, jadi dilewati (gerbang `cpuid.c:865`). Leaf 0xa (arch perfmon) dipakai dan AMD mengembalikan nilai tak bermakna; dampak ke `_cpc_*` (rdpmc ×31) lihat butir perf counter di bawah (terjaga).
 - `invpcid` ×13 (pmap): hanya bila `invpcid_enabled`, yang di-set hanya bila `cpuid_features() & PCID` **dan** leaf7 INVPCID (`pmap_pcid.c:111-126`). `machdep.cpu.features` di sini tidak memuat PCID ⇒ terjaga.
 - `monitor/mwait` hanya di `_xcpm_*` (XCPM nonaktif). `vmcall` ×9 hanya untuk tamu hypervisor. `vmxon/vmread/invept` terjaga VMX. `rdrand/rdseed` ada di Zen 2. `xsetbv/xgetbv` standar.
+- **Perf counter (`_cpc_*`, `rdpmc` ×31, `wrmsr` 0x186–0x189/0x38d–0x390):** `sysctl machdep.cpu.arch_perf.*` semuanya **0** (version 0, number 0, fixed_number 0) di mesin ini. Source: `cpc_x86_64.c:358` hanya menyiapkan CPMU bila `arch_perf_leaf.version >= 2`;
+  `kpc_x86.c:77-120` menghitung jumlah counter dari field yang sama (=0). Jadi counter Intel tidak tersedia/tidak dipakai; kperf/Instruments tidak akan menyentuh MSR itu (pengamatan runtime + source; tidak diuji dengan menjalankan kperf).
 Tidak ada kandidat baru. Pengamatan runtime: `notes/runtime-observations.md`.
 
 ## Kesimpulan
