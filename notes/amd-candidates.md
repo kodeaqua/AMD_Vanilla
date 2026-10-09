@@ -32,6 +32,15 @@ Hasil: **348 situs** `rdmsr/wrmsr` (data mentah tidak disimpan; ulang dengan skr
 
 Catatan: `_vmx_hv_support` dan `_kperf_lazy_wait_sample` pernah tersentuh patch upstream 20 yang salah sasaran; patch 22 sudah menghindarinya.
 
+## Pemeriksaan gating (lanjutan, terverifikasi di binary kecuali dicatat)
+- **VMX** (`_vmx_cpu_init` `0x…3ff460`, dipanggil `_cpu_start`/`_cpu_machine_init`): setelah `call cpuid_features` ada `bt rax,0x25; jae` (bit 37 = CPUID.1:ECX bit 5 VMX) sebelum `rdmsr 0x3a`, dan `test rax,0x2000000000` (bit yang sama) sebelum MSR 0x480+.
+  `sysctl machdep.cpu.features` di mesin ini **tidak memuat VMX** ⇒ jalur `rdmsr 0x3a/0x480…` dilewati. Terjaga.
+- **XCPM** (`_xcpm_init` `0x…40b320`): diawali `cmp dword [flag 0x…e4fa80],0; je return`. Flag itu hanya ditulis `_xcpm_bootstrap` (`0x…40a830`, dipanggil `_i386_init`): `=1` di `0x…40abf9` setelah
+  pencocokan signature CPU Intel (`cmp eax,0x1910 / 0x3e10 / 0x8a06 …`), dan `=0` di `0x…40aa10` pada jalur default. Cabang untuk signature AMD **belum ditelusuri sampai akhir**, tetapi struktur menunjukkan XCPM
+  hanya aktif untuk signature Intel tertentu. Terjaga (kuat, bukan bukti penuh).
+- **TSC-deadline** (`_lapic_config_tsc_deadline_timer` `0x…3f6600`, menulis MSR 0x6e0): dipanggil lewat thunk `0x…3ebbc0`; pemanggil thunk tidak ditelusuri. `sysctl machdep.cpu.features` tidak memuat TSCTMR,
+  konsisten dengan dilewatinya jalur ini; **gating pemanggil belum dibuktikan**.
+
 ## Kesimpulan
 - Dari pindaian ini **tidak ada kandidat patch baru yang terbukti perlu di jalur boot**; set yang ada (4–8, 12, 14, 15, 16, 20, 22, PAT, core count) menutup situs Intel-only yang terlihat, dengan dua ketergantungan di luar plist
   (`ProvideCurrentCpuInfo` untuk `_tsc_init`; status patch 14).
@@ -39,6 +48,6 @@ Catatan: `_vmx_hv_support` dan `_kperf_lazy_wait_sample` pernah tersentuh patch 
 
 ## Langkah lanjut (menunggu keputusan)
 1. Log debug OpenCore: apakah patch 14 terpasang? (menjelaskan temuan 2).
-2. Periksa gating `_vmx_cpu_init`, `_xcpm_init`, `_lapic_config_tsc_deadline_timer` di binary bila ingin menutup hipotesis di atas.
+2. (Sebagian selesai, lihat "Pemeriksaan gating".) Sisa: telusuri pemanggil thunk TSC-deadline dan cabang AMD di `_xcpm_bootstrap`.
 3. Bila `-nomsr35h` dianggap alternatif patch 14/3, analisis cabangnya (flag `rax`) dan uji di hardware.
 4. Analisis `_cpc_*/_kpc_*` bila memakai Instruments/powermetrics di mesin ini.
