@@ -25,6 +25,9 @@ Status per patch:
   PLAUSIBLE UNPROVEN, tetapi lokasi tiap kecocokan yang terpakai terdaftar di
             notes/evidence.json (baris source XNU + disassembly) untuk build ini. TIDAK
             otomatis OK: promosi ke OK/VERIFIED adalah keputusan pengguna.
+  BOOT-OK   (penanda terpisah dari status, kolom setelah on/off) isi patch persis sama dengan
+            set yang tercatat boot di hardware (notes/boot-ok.json). BUKAN bukti tiap patch
+            terpasang; itu hanya bisa dibuktikan lewat log debug OpenCore.
   UNPROVEN  byte cocok, tetapi fungsi pemilik kecocokan yang terpakai tidak terbukti sama
             dengan fungsi yang dimaksud (Base / kolom fungsi di Comment). Wajib dicek manual.
             Berlaku juga untuk Count 0 dan Find yang cocok di banyak tempat.
@@ -37,6 +40,7 @@ Status per patch:
 import argparse
 import bisect
 import collections
+import hashlib
 import json
 import os
 import platform
@@ -353,6 +357,14 @@ def verify_patch(kern, p):
     return r
 
 
+def patch_hash(p):
+    """Hash isi patch (semua field yang dipakai OpenCore) untuk mencocokkan catatan BOOT-OK."""
+    keys = ["Arch", "Base", "Comment", "Count", "Enabled", "Find", "Identifier", "Limit", "Mask",
+            "MaxKernel", "MinKernel", "Replace", "ReplaceMask", "Skip"]
+    d = {k: (p[k].hex() if isinstance(p.get(k), bytes) else p.get(k)) for k in keys}
+    return hashlib.sha256(json.dumps(d, sort_keys=True).encode()).hexdigest()[:16]
+
+
 def apply_evidence(res, p, kern, build, evidence):
     """Naikkan status memakai notes/evidence.json bila himpunan vaddr yang terpakai persis sama
     dengan entri (kunci: build + Comment + MinKernel). UNPROVEN -> PLAUSIBLE. Entri yang punya
@@ -382,6 +394,9 @@ def main():
     ap.add_argument("--kernel", help="default: kernels/<build dari uname -v>/kernel")
     ap.add_argument("--darwin", help="versi Darwin target, default platform.release()")
     ap.add_argument("--all-versions", action="store_true", help="abaikan MinKernel/MaxKernel")
+    ap.add_argument("--enabled-only", action="store_true", help="hanya patch dengan Enabled=true (indeks = urutan setelah filter)")
+    ap.add_argument("--boot", default=os.path.join(ROOT, "notes", "boot-ok.json"),
+                    help="catatan BOOT-OK (default notes/boot-ok.json)")
     ap.add_argument("--index", type=int, nargs="*", help="hanya patch dengan indeks ini")
     ap.add_argument("--evidence", default=os.path.join(ROOT, "notes", "evidence.json"),
                     help="bukti manual (UNPROVEN -> PLAUSIBLE), default notes/evidence.json")
@@ -397,9 +412,19 @@ def main():
     darwin = parse_ver(a.darwin or platform.release())
 
     with open(a.plist, "rb") as f:
-        patches = plistlib.load(f)["Kernel"]["Patch"]
+        doc = plistlib.load(f)
+    # config.plist lengkap (Kernel.Patch) atau array Patch saja (hasil salin dari config)
+    patches = doc if isinstance(doc, list) else doc["Kernel"]["Patch"]
+    if a.enabled_only:
+        patches = [p for p in patches if p.get("Enabled")]
     kern = Kernel(kpath)
     build = os.path.basename(os.path.dirname(os.path.abspath(kpath)))
+    boot = {}
+    if os.path.isfile(a.boot):
+        with open(a.boot) as f:
+            bj = json.load(f)
+        if bj.get("kernel_build") == build:
+            boot = {e["hash"]: bj for e in bj["patches"]}
     evidence = []
     if os.path.isfile(a.evidence):
         with open(a.evidence) as f:
@@ -421,7 +446,8 @@ def main():
 
     for i, p, res in results:
         en = "on " if p.get("Enabled") else "off"
-        print("[%02d] %-10s %s  %s" % (i, res["status"], en, p["Comment"]))
+        tag = "BOOT-OK" if (p.get("Enabled") and res["status"] != "N/A" and patch_hash(p) in boot) else "-"
+        print("[%02d] %-10s %s  %-7s %s" % (i, res["status"], en, tag, p["Comment"]))
         print("     Base=%r Count=%s Skip=%s Kernel=%s..%s" % (
             p.get("Base") or "", p.get("Count"), p.get("Skip"), p.get("MinKernel"), p.get("MaxKernel")))
         for n in res["notes"]:
