@@ -20,6 +20,9 @@ Status per patch:
   OK        cocok sesuai Count, panjang sama, dan SEMUA kecocokan yang terpakai berada di
             fungsi yang dimaksud (menurut LC_FUNCTION_STARTS)
   NO-MATCH  Find tidak ditemukan
+  PLAUSIBLE UNPROVEN, tetapi lokasi tiap kecocokan yang terpakai terdaftar di
+            notes/evidence.json (baris source XNU + disassembly) untuk build ini. TIDAK
+            otomatis OK: promosi ke OK/VERIFIED adalah keputusan pengguna.
   UNPROVEN  byte cocok, tetapi fungsi pemilik kecocokan yang terpakai tidak terbukti sama
             dengan fungsi yang dimaksud (Base / kolom fungsi di Comment). Wajib dicek manual.
             Berlaku juga untuk Count 0 dan Find yang cocok di banyak tempat.
@@ -32,6 +35,7 @@ Status per patch:
 import argparse
 import bisect
 import collections
+import json
 import os
 import platform
 import plistlib
@@ -50,7 +54,7 @@ except ImportError:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAIL_STATUSES = {"NO-MATCH", "FEWER", "LENGTH", "NO-BASE"}
-WARN_STATUSES = {"MULTI", "UNPROVEN"}
+WARN_STATUSES = {"MULTI", "UNPROVEN"}  # PLAUSIBLE tidak gagal, tetapi juga bukan OK
 
 
 def parse_ver(s):
@@ -347,6 +351,22 @@ def verify_patch(kern, p):
     return r
 
 
+def apply_evidence(res, p, kern, build, evidence):
+    """UNPROVEN -> PLAUSIBLE hanya bila himpunan vaddr yang terpakai persis sama dengan
+    entri bukti (kunci: build + Comment + MinKernel). Tidak pernah menghasilkan OK."""
+    if res["status"] != "UNPROVEN":
+        return
+    got = {"0x%x" % kern.off_to_vaddr(o) for o in res["hits"]}
+    for e in evidence:
+        if (e["build"], e["comment"], e["min_kernel"]) == (build, p["Comment"], p["MinKernel"]):
+            if got == set(e["vaddrs"]):
+                res["status"] = "PLAUSIBLE"
+                res["notes"].append("bukti: %s | %s" % (", ".join(e["source"]), e["note"]))
+            else:
+                res["notes"].append("entri bukti ada tetapi vaddr berbeda: %s" % sorted(got ^ set(e["vaddrs"])))
+            return
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--plist", default=os.path.join(ROOT, "patches.plist"))
@@ -354,6 +374,8 @@ def main():
     ap.add_argument("--darwin", help="versi Darwin target, default platform.release()")
     ap.add_argument("--all-versions", action="store_true", help="abaikan MinKernel/MaxKernel")
     ap.add_argument("--index", type=int, nargs="*", help="hanya patch dengan indeks ini")
+    ap.add_argument("--evidence", default=os.path.join(ROOT, "notes", "evidence.json"),
+                    help="bukti manual (UNPROVEN -> PLAUSIBLE), default notes/evidence.json")
     ap.add_argument("-v", "--verbose", action="store_true", help="tampilkan disassembly sebelum/sesudah")
     a = ap.parse_args()
 
@@ -368,6 +390,11 @@ def main():
     with open(a.plist, "rb") as f:
         patches = plistlib.load(f)["Kernel"]["Patch"]
     kern = Kernel(kpath)
+    build = os.path.basename(os.path.dirname(os.path.abspath(kpath)))
+    evidence = []
+    if os.path.isfile(a.evidence):
+        with open(a.evidence) as f:
+            evidence = json.load(f)
     print("Kernel : %s" % os.path.relpath(kpath, ROOT))
     print("Darwin : %d.%d.%d%s" % (darwin + (" (semua versi)" if a.all_versions else "",)))
     print("Plist  : %s (%d patch)\n" % (os.path.relpath(a.plist, ROOT), len(patches)))
@@ -380,6 +407,7 @@ def main():
             res = {"status": "N/A", "notes": [], "hits": [], "changes": []}
         else:
             res = verify_patch(kern, p)
+            apply_evidence(res, p, kern, build, evidence)
         results.append((i, p, res))
 
     for i, p, res in results:
