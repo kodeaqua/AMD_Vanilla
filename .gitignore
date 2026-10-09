@@ -1,3 +1,4 @@
-.DS_storekernels/
+.DS_Store
+kernels/
 xnu/
 .venv/
