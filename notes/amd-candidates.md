@@ -35,11 +35,15 @@ Catatan: `_vmx_hv_support` dan `_kperf_lazy_wait_sample` pernah tersentuh patch 
 ## Pemeriksaan gating (lanjutan, terverifikasi di binary kecuali dicatat)
 - **VMX** (`_vmx_cpu_init` `0x…3ff460`, dipanggil `_cpu_start`/`_cpu_machine_init`): setelah `call cpuid_features` ada `bt rax,0x25; jae` (bit 37 = CPUID.1:ECX bit 5 VMX) sebelum `rdmsr 0x3a`, dan `test rax,0x2000000000` (bit yang sama) sebelum MSR 0x480+.
   `sysctl machdep.cpu.features` di mesin ini **tidak memuat VMX** ⇒ jalur `rdmsr 0x3a/0x480…` dilewati. Terjaga.
-- **XCPM** (`_xcpm_init` `0x…40b320`): diawali `cmp dword [flag 0x…e4fa80],0; je return`. Flag itu hanya ditulis `_xcpm_bootstrap` (`0x…40a830`, dipanggil `_i386_init`): `=1` di `0x…40abf9` setelah
-  pencocokan signature CPU Intel (`cmp eax,0x1910 / 0x3e10 / 0x8a06 …`), dan `=0` di `0x…40aa10` pada jalur default. Cabang untuk signature AMD **belum ditelusuri sampai akhir**, tetapi struktur menunjukkan XCPM
-  hanya aktif untuk signature Intel tertentu. Terjaga (kuat, bukan bukti penuh).
-- **TSC-deadline** (`_lapic_config_tsc_deadline_timer` `0x…3f6600`, menulis MSR 0x6e0): dipanggil lewat thunk `0x…3ebbc0`; pemanggil thunk tidak ditelusuri. `sysctl machdep.cpu.features` tidak memuat TSCTMR,
-  konsisten dengan dilewatinya jalur ini; **gating pemanggil belum dibuktikan**.
+- **XCPM** (`_xcpm_init` `0x…40b320`): diawali `cmp dword [flag 0x…e4fa80],0; je return`. Flag itu ditulis `_xcpm_bootstrap` (`0x…40a830`, dipanggil `_i386_init`): `=0` di `0x…40aa10`, `=1` di `0x…40abf9`.
+  Alur (terverifikasi di binary): `cpuid_features(); test rax,rax; js 0x…aa10` (bit 63 = hypervisor/VMM ⇒ nonaktif), lalu `r12 = byte [cpu_info+0x4d]` (= `cpuid_model`; tata letak
+  `i386_cpu_info_t` konsisten dengan `cpuid.h:429-442`, stepping di `+0x50` terbaca di instruksi berikutnya), `r12 -= 0x3c; cmp r12,0x69; ja 0x…aa10`, lalu jump table (`0x…40ad5c`).
+  Isi tabel: 92 dari 106 model menuju `0x…aa10` (flag=0); hanya model Intel `0x3c,0x3d,0x45,0x46,0x47,0x4e,0x55,0x5e,0x7d,0x7e,0x8e,0x9e,0x9f,0xa5` menuju cabang lain.
+  Mesin ini `machdep.cpu.model` = 96 (0x60) ⇒ indeks 0x24 ⇒ `0x…aa10` ⇒ **XCPM nonaktif**; model > 0xa5 juga nonaktif. Catatan: CPU AMD yang nomor modelnya bertabrakan dengan daftar Intel di atas akan masuk cabang Intel (tidak berlaku untuk model 0x60).
+  Source `xcpm_bootstrap` tidak publik; hanya binary. Pengambilan keputusan `+0x4d = cpuid_model` didasarkan pada tata letak struct, bukan simbol.
+- **TSC-deadline** (`_lapic_config_tsc_deadline_timer` `0x…3f6600`, MSR 0x6e0): tidak dipanggil langsung; thunk `0x…3ebbc0` ditunjuk dari `__DATA,__data 0x…c77f28` (anggota `rtc_config` tabel `rtc_timer_tsc_deadline`).
+  Pemilihan tabel di `_rtc_timer_init` (`0x…3ebca6`): `call cpuid_features; bt rax,0x38 (CPUID_FEATURE_TSCTMR); jae` ke jalur non-deadline — sama dengan source `rtclock_native.c:171`.
+  `sysctl machdep.cpu.features` di mesin ini tidak memuat TSCTMR ⇒ jalur LAPIC-timer biasa; MSR 0x6e0 tidak ditulis. Terjaga.
 
 ## Kesimpulan
 - Dari pindaian ini **tidak ada kandidat patch baru yang terbukti perlu di jalur boot**; set yang ada (4–8, 12, 14, 15, 16, 20, 22, PAT, core count) menutup situs Intel-only yang terlihat, dengan dua ketergantungan di luar plist
@@ -48,6 +52,6 @@ Catatan: `_vmx_hv_support` dan `_kperf_lazy_wait_sample` pernah tersentuh patch 
 
 ## Langkah lanjut (menunggu keputusan)
 1. Log debug OpenCore: apakah patch 14 terpasang? (menjelaskan temuan 2).
-2. (Sebagian selesai, lihat "Pemeriksaan gating".) Sisa: telusuri pemanggil thunk TSC-deadline dan cabang AMD di `_xcpm_bootstrap`.
+2. ~~Gating VMX/XCPM/TSC-deadline~~ — selesai (lihat "Pemeriksaan gating"); ketiganya terjaga di mesin ini.
 3. Bila `-nomsr35h` dianggap alternatif patch 14/3, analisis cabangnya (flag `rax`) dan uji di hardware.
 4. Analisis `_cpc_*/_kpc_*` bila memakai Instruments/powermetrics di mesin ini.
