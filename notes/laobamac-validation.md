@@ -136,3 +136,20 @@ Jadi **belum 06** di laobamac maupun upstream. Dipakai apa adanya, `cpuid_cores_
 6. PAT: algrey vs Shaneee.
 7. Patch kext IOPCIFamily (17/18): perlu binary kext untuk diverifikasi; Ryzen 4500 kemungkinan tidak membutuhkannya (Anda yang memutuskan).
 8. Hanya satu kernel (25.6.0) yang diuji; patch 21 untuk 25.0–25.3 tidak bisa dibuktikan.
+
+## 8. Keputusan pengguna (2026-10-09) dan status `work/work.plist`
+
+**VERIFIED = terverifikasi STATIS (byte cocok, disassembly, source/string binary). Bukan tes hardware; semua tetap BELUM DITES HARDWARE.**
+
+1. **VERIFIED** (indeks laobamac 4–8, 12, 15, 16, 20, 22): disetujui pengguna dan dicatat sebagai `decision` di `notes/evidence.json`. Sisanya tetap PLAUSIBLE (3, PAT) / UNPROVEN (10) / NO-BASE (14).
+   - **Efek samping patch 15** (`_i386_init`, 3 kecocokan): Find 42 byte tidak hanya menghapus dua `rdmsr` (0x199/0x198) tetapi juga `mov edi,0x5310258; xor ecx,ecx; xor r8d,r8d`.
+     Setelah NOP, kode lanjut ke `pop rbp; jmp _kernel_debug_early` (di `_pstate_trace`) atau ke kelanjutan di `_i386_init` dengan `edi/rsi/rdx/rcx/r8` berisi sisa register, jadi event kdebug awal
+     bisa tercatat dengan debugid/argumen sampah. Perilaku `_kernel_debug_early` dengan argumen itu **belum dianalisis**. Kecocokan di `_pstate_trace` (`0x…3df2d4`) tidak punya pemanggil `call/jmp rel32` langsung
+     di `__TEXT,__text` (pemanggil tak langsung/kext tidak dikesampingkan); dua lainnya di `_i386_init`. Source publik `pstate_trace()` kosong, binary berbeda (aturan 10).
+2. **Patch 14**: TIDAK diperbaiki; tetap `NO-BASE` (Base `'_cpuid_set_info '`) sampai ada log debug OpenCore. Kalau terbukti dilewati, perbaiki di commit terpisah.
+3. **Patch 10**: dibiarkan apa adanya (aktif). Maksud asli (leaf7) tidak punya padanan di Tahoe; masuk daftar riset tugas 4. Lihat `notes/cpuid-leaf7.md`.
+4. **Patch 22 laobamac**: disalin manual ke `work/work.plist` (upstream 20 → dua entri ≤25.3.99 dan 26.4+), commit `fix(monotonic-time)`. Kerapuhan (`Count=2`, kecocokan ke-3 di `0xfa45d`): `notes/non-monotonic-time.md`.
+5. **Core count**: `Replace` byte core count = `06` pada keempat entri algrey di `work/work.plist` (hanya `Replace`). Entri Darwin 25 (`13.3+`): `ba 06 00 00 00` → `mov edx,6` di `0x…3d54a5`. Status PLAUSIBLE (belum diputuskan VERIFIED).
+6. **PAT**: algrey (`Algrey / Zormeister`, aktif) tetap default; Shaneee tetap nonaktif. Tidak ada perubahan.
+
+Hasil `verify.py --plist work/work.plist` pada `xnu-12377.161.15.700.19`: N/A=9, VERIFIED=10, PLAUSIBLE=3 (core count, PAT ×2), UNPROVEN=1 (patch 10), NO-BASE=1 (patch 14), NOT-KERNEL=2 (kext).
