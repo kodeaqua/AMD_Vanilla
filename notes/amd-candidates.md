@@ -54,6 +54,14 @@ hanya menghasilkan paling banyak 256 entri trace awal yang tidak bermakna; penul
 - Tag source XNU terbaru: `git ls-remote` menunjukkan tag tertinggi tetap `xnu-12377.121.6` (`ac9718f`), sama dengan `xnu/`. Tidak ada tag baru untuk `xnu-12377.161.15.700.19`.
 - `ocvalidate` tidak ada di mesin ini (`which ocvalidate` kosong); langkah `ocvalidate` belum bisa dijalankan sampai paket OpenCore disalin ke repo (dilakukan pengguna).
 
+## Pindaian kedua: leaf CPUID dan instruksi khusus (2026-10-09)
+Pindai `cpuid` (leaf dari `mov eax,imm`) dan instruksi khusus di `__TEXT,__text`:
+- Leaf yang dipakai: 0x0,0x1,0x2,0x4,0x5,0x6,0x7,0xa,0xd,0x15, 0x80000000–8/6/7/8, plus leaf VMM 0x40000000/1/10. **Leaf 0xB/0x1F (topologi) tidak dipakai** ⇒ tidak ada masalah topologi AMD di jalur ini.
+- Leaf 0x15 (TSC/crystal Intel) hanya dibaca bila `max_basic >= 0x15`; mesin ini 16, jadi dilewati (gerbang `cpuid.c:865`). Leaf 0xa (arch perfmon) dipakai dan AMD mengembalikan nilai tak bermakna; dampak ke `_cpc_*` (rdpmc ×31) belum ditelusuri (hanya saat kperf dipakai).
+- `invpcid` ×13 (pmap): hanya bila `invpcid_enabled`, yang di-set hanya bila `cpuid_features() & PCID` **dan** leaf7 INVPCID (`pmap_pcid.c:111-126`). `machdep.cpu.features` di sini tidak memuat PCID ⇒ terjaga.
+- `monitor/mwait` hanya di `_xcpm_*` (XCPM nonaktif). `vmcall` ×9 hanya untuk tamu hypervisor. `vmxon/vmread/invept` terjaga VMX. `rdrand/rdseed` ada di Zen 2. `xsetbv/xgetbv` standar.
+Tidak ada kandidat baru. Pengamatan runtime: `notes/runtime-observations.md`.
+
 ## Kesimpulan
 - Dari pindaian ini **tidak ada kandidat patch baru yang terbukti perlu di jalur boot**; set yang ada (4–8, 12, 14, 15, 16, 20, 22, PAT, core count) menutup situs Intel-only yang terlihat, dengan dua ketergantungan di luar plist
   (`ProvideCurrentCpuInfo` untuk `_tsc_init`; status patch 14).

@@ -38,6 +38,9 @@ Yang tidak berlaku di Darwin 25 (N/A): indeks 0–2, 9, 11, 13, 17, 21, 23, 24. 
 - PAT: Shaneee aktif, algrey nonaktif (pilihan pengguna).
 - Patch 10 dan 14 tidak diubah.
 
+## Pengamatan runtime
+Lihat `runtime-observations.md`: `microcode_version`=186 (patch 7), `processor_flag`=1 (patch 8), `core_count`=6 (patch 3), `hw.cpufamily`=Penryn (patch 14 atau setara) menunjukkan efek patch tersebut di sistem hidup. Bukan pengganti log OpenCore.
+
 ## Belum selesai / butuh Anda
 1. Log debug OpenCore (+ versi OpenCore): bukti patch 14 dan 10 benar-benar terpasang (probeBusGated ditunda).
 2. ~~Binary IOPCIFamily untuk `probeBusGated`~~ — DITUNDA atas permintaan pengguna (2026-10-09); tetap NOT-KERNEL + BOOT-OK, tidak dikerjakan sekarang.
