@@ -17,10 +17,12 @@ Pemakaian:
                           [--all-versions] [--index N ...] [-v]
 
 Status per patch:
-  OK        cocok sesuai Count, panjang sama, diff terhitung
+  OK        cocok sesuai Count, panjang sama, dan SEMUA kecocokan yang terpakai berada di
+            fungsi yang dimaksud (menurut LC_FUNCTION_STARTS)
   NO-MATCH  Find tidak ditemukan
-  MULTI     kecocokan lebih banyak dari Count (OpenCore hanya menambal Count pertama,
-            tetapi unik-nya Find diragukan; periksa Base/Mask)
+  UNPROVEN  byte cocok, tetapi fungsi pemilik kecocokan yang terpakai tidak terbukti sama
+            dengan fungsi yang dimaksud (Base / kolom fungsi di Comment). Wajib dicek manual.
+            Berlaku juga untuk Count 0 dan Find yang cocok di banyak tempat.
   FEWER     kecocokan kurang dari Count (Count > 0)
   LENGTH    panjang Find/Replace/Mask/ReplaceMask tidak konsisten
   NO-BASE   simbol Base tidak ada di tabel simbol kernel
@@ -29,6 +31,7 @@ Status per patch:
 """
 import argparse
 import bisect
+import collections
 import os
 import platform
 import plistlib
@@ -47,7 +50,7 @@ except ImportError:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FAIL_STATUSES = {"NO-MATCH", "FEWER", "LENGTH", "NO-BASE"}
-WARN_STATUSES = {"MULTI"}
+WARN_STATUSES = {"MULTI", "UNPROVEN"}
 
 
 def parse_ver(s):
@@ -89,14 +92,45 @@ class Kernel:
                 self.syms.setdefault(s.name, s.value)
         self._sorted = sorted((v, n) for n, v in self.syms.items())
         self._addrs = [v for v, _ in self._sorted]
+        self.names_at = collections.defaultdict(list)
+        for n, v in self.syms.items():
+            self.names_at[v].append(n)
+        self.sections = [(s.segment_name, s.name, s.virtual_address, s.size, s.offset)
+                         for s in b.sections]
+        # LC_FUNCTION_STARTS: delta relatif ke vmaddr __TEXT (hanya mencakup __TEXT)
+        text = [s for s in b.segments if s.name == "__TEXT"][0]
+        self.text_lo = text.virtual_address
+        self.text_hi = text.virtual_address + text.virtual_size
+        self.fstarts = sorted(set(self.text_lo + x for x in b.function_starts.functions))
+        self.check_offsets()
 
-    def symbol_at(self, va):
-        """Simbol terdekat di bawah/sama dengan va, sebagai 'nama+0xoff'."""
+    def check_offsets(self):
+        """Konversi vmaddr <-> file offset harus cocok dengan offset section di Mach-O."""
+        for seg, name, va, size, off in self.sections:
+            if size and off and self.vaddr_to_off(va) != off:
+                sys.exit("konversi vmaddr->offset salah untuk %s,%s" % (seg, name))
+            if size and off and self.off_to_vaddr(off) != va:
+                sys.exit("konversi offset->vmaddr salah untuk %s,%s" % (seg, name))
+
+    def section_at(self, va):
+        for seg, name, v, size, off in self.sections:
+            if size and v <= va < v + size:
+                return "%s,%s" % (seg, name)
+        return "?"
+
+    def owner(self, va):
+        """(nama, awal_fungsi, sumber). Sumber 'fstarts' = batas dari LC_FUNCTION_STARTS;
+        'symbol' = hanya simbol terdekat (di luar cakupan function-starts, mis. __HIB)."""
+        if self.text_lo <= va < self.text_hi and self.fstarts:
+            i = bisect.bisect_right(self.fstarts, va) - 1
+            if i >= 0:
+                st = self.fstarts[i]
+                names = self.names_at.get(st)
+                return (" / ".join(sorted(names)) if names else "sub_%x" % st, st, "fstarts")
         i = bisect.bisect_right(self._addrs, va) - 1
         if i < 0:
-            return "?"
-        v, n = self._sorted[i]
-        return "%s+0x%x" % (n, va - v)
+            return ("?", va, "none")
+        return (self._sorted[i][1], self._sorted[i][0], "symbol")
 
     def vaddr_to_off(self, va):
         for _, v, o, sz in self.segs:
@@ -163,22 +197,51 @@ def apply_replace(old, rep, rmask):
     return bytes((o & ~m & 0xFF) | (r & m) for o, r, m in zip(old, rep, rmask))
 
 
-def disasm(kern, off, size, tag):
+def disasm_window(kern, off, size, patched=None, ctx=32):
+    """Disassembly ctx byte sebelum dan sesudah match. Dekode dimulai dari awal fungsi
+    (LC_FUNCTION_STARTS) agar alignment instruksi benar. patched = byte pengganti."""
     if capstone is None:
         return ["    (capstone tidak terpasang)"]
+    va = kern.off_to_vaddr(off)
+    name, st, src = kern.owner(va)
+    start_va = va
+    if src == "fstarts" and va - st <= 0x4000:
+        start_va = st
+    start_off = kern.vaddr_to_off(start_va)
+    end_off = off + size + ctx
+    code = bytearray(kern.data[start_off:end_off])
+    if patched is not None:
+        code[off - start_off:off - start_off + size] = patched
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
-    code = kern.data[off:off + size] if tag == "before" else tag
-    va = kern.off_to_vaddr(off) or off
     lines = []
-    covered = 0
-    for ins in md.disasm(code, va):
-        lines.append("    %016x  %-24s %s %s" % (
-            ins.address, ins.bytes.hex(" "), ins.mnemonic, ins.op_str))
-        covered += ins.size
-    if covered < len(code):
-        lines.append("    ... %d byte tidak terdisassemble: %s" % (
-            len(code) - covered, code[covered:].hex(" ")))
+    lo, hi = va - ctx, va + size + ctx
+    for ins in md.disasm(bytes(code), start_va):
+        if ins.address + ins.size <= lo:
+            continue
+        if ins.address >= hi:
+            break
+        inside = ins.address < va + size and ins.address + ins.size > va
+        lines.append("    %s %016x  %-24s %s %s" % (
+            ">" if inside else " ", ins.address, ins.bytes.hex(" "), ins.mnemonic, ins.op_str))
+    if not lines:
+        lines.append("    (tidak ada instruksi terdekode di jendela ini)")
     return lines
+
+
+def expected_functions(p):
+    """Fungsi yang dimaksud patch: Base + kolom fungsi di Comment (format 4 kolom:
+    nama | _fungsi | apa | versi). Dinormalisasi tanpa awalan underscore."""
+    out = set()
+    base = (p.get("Base") or "").strip()
+    if base and not base.startswith("__Z"):
+        out.add(base.lstrip("_"))
+    fields = [x.strip() for x in p.get("Comment", "").split("|")]
+    if len(fields) >= 4:
+        for tok in fields[1].split(","):
+            tok = tok.strip()
+            if re.fullmatch(r"_*[A-Za-z0-9_]+", tok):
+                out.add(tok.lstrip("_"))
+    return out
 
 
 def verify_patch(kern, p):
@@ -248,6 +311,39 @@ def verify_patch(kern, p):
         r["changes"].append((off, old, new, diff))
         if not diff:
             r["notes"].append("0x%x: patch tidak mengubah byte apa pun (no-op)" % off)
+
+    # bukti lokasi: pemilik setiap kecocokan yang terpakai harus fungsi yang dimaksud
+    exp = expected_functions(p)
+    r["expected"] = exp
+    r["owners"] = []
+    outside = []
+    for off in applied:
+        va = kern.off_to_vaddr(off)
+        name, st, src = kern.owner(va)
+        names = {x.lstrip("_") for x in name.split(" / ")}
+        ok = bool(exp & names)
+        r["owners"].append((off, va, kern.section_at(va), name, va - st, src, ok))
+        if not ok:
+            outside.append(off)
+    if r["status"] in ("OK", "MULTI"):
+        extra = len(avail) - len(applied)
+        if exp and not outside:
+            r["status"] = "OK"
+            if extra:
+                r["notes"].append("terbukti: %d kecocokan pertama setelah Base ada di fungsi yang "
+                                  "dimaksud; %d kecocokan lain tidak dipakai" % (len(applied), extra))
+        else:
+            r["status"] = "UNPROVEN"
+            if not exp:
+                r["notes"].append("fungsi yang dimaksud tidak diketahui (tanpa Base dan Comment "
+                                  "tanpa kolom fungsi); buktikan manual")
+            else:
+                r["notes"].append("fungsi yang dimaksud %s, tetapi %d dari %d kecocokan terpakai "
+                                  "ada di fungsi lain" % (sorted(exp), len(outside), len(applied)))
+                nosym = sorted(e for e in exp if "_" + e not in kern.syms and e not in kern.syms)
+                if nosym:
+                    r["notes"].append("%s tidak ada di tabel simbol (fungsi static/inline?): "
+                                      "tidak bisa dibuktikan lewat nama, perlu analisis manual" % nosym)
     return r
 
 
@@ -289,29 +385,29 @@ def main():
     for i, p, res in results:
         en = "on " if p.get("Enabled") else "off"
         print("[%02d] %-10s %s  %s" % (i, res["status"], en, p["Comment"]))
-        print("     Base=%s Count=%s Skip=%s Kernel=%s..%s" % (
-            p.get("Base") or "-", p.get("Count"), p.get("Skip"), p.get("MinKernel"), p.get("MaxKernel")))
+        print("     Base=%r Count=%s Skip=%s Kernel=%s..%s" % (
+            p.get("Base") or "", p.get("Count"), p.get("Skip"), p.get("MinKernel"), p.get("MaxKernel")))
         for n in res["notes"]:
             print("     ! %s" % n)
         if res["status"] in ("N/A", "NOT-KERNEL"):
             continue
         if "hits_all" in res:
             print("     kecocokan total=%d diterapkan=%d" % (len(res["hits_all"]), len(res["hits"])))
-        for off, old, new, diff in res["changes"]:
-            va = kern.off_to_vaddr(off)
-            print("     @ file 0x%x  vaddr %s  (%d byte)  di %s" % (
-                off, "0x%x" % va if va else "?", len(old), kern.symbol_at(va) if va else "?"))
+        for (off, old, new, diff), ow in zip(res["changes"], res.get("owners", [])):
+            _, va, sect, name, rel, src, okf = ow
+            print("     @ file 0x%x  vaddr 0x%x  [%s]  (%d byte)" % (off, va, sect, len(old)))
+            print("       fungsi : %s+0x%x (%s)  %s" % (
+                name, rel, "LC_FUNCTION_STARTS" if src == "fstarts" else "simbol terdekat, TIDAK pasti",
+                "SESUAI" if okf else "BUKAN fungsi yang dimaksud %s" % sorted(res["expected"])))
             print("       sebelum: %s" % old.hex(" "))
             print("       sesudah: %s" % new.hex(" "))
             print("       diff   : %s" % (", ".join("+%d:%02x->%02x" % (o - off, x, y) for o, x, y in diff) or "-"))
             if a.verbose:
-                ctx = 16
-                print("     disassembly sebelum (ke depan %d byte dari match):" % ctx)
-                for l in disasm(kern, off, len(old) + ctx, "before"):
+                print("     disassembly SEBELUM (32 byte sebelum/sesudah, > = byte match):")
+                for l in disasm_window(kern, off, len(old)):
                     print(l)
-                print("     disassembly sesudah (match diganti, sisa byte asli):")
-                tail = kern.data[off + len(old):off + len(old) + ctx]
-                for l in disasm(kern, off, len(old), new + tail):
+                print("     disassembly SESUDAH:")
+                for l in disasm_window(kern, off, len(old), new):
                     print(l)
         print()
 
