@@ -20,6 +20,8 @@ Status per patch:
   OK        cocok sesuai Count, panjang sama, dan SEMUA kecocokan yang terpakai berada di
             fungsi yang dimaksud (menurut LC_FUNCTION_STARTS)
   NO-MATCH  Find tidak ditemukan
+  VERIFIED  seperti PLAUSIBLE, dengan keputusan pengguna di "decision" pada evidence.json.
+            Hanya berarti terverifikasi STATIS, bukan tes hardware.
   PLAUSIBLE UNPROVEN, tetapi lokasi tiap kecocokan yang terpakai terdaftar di
             notes/evidence.json (baris source XNU + disassembly) untuk build ini. TIDAK
             otomatis OK: promosi ke OK/VERIFIED adalah keputusan pengguna.
@@ -352,18 +354,25 @@ def verify_patch(kern, p):
 
 
 def apply_evidence(res, p, kern, build, evidence):
-    """UNPROVEN -> PLAUSIBLE hanya bila himpunan vaddr yang terpakai persis sama dengan
-    entri bukti (kunci: build + Comment + MinKernel). Tidak pernah menghasilkan OK."""
-    if res["status"] != "UNPROVEN":
+    """Naikkan status memakai notes/evidence.json bila himpunan vaddr yang terpakai persis sama
+    dengan entri (kunci: build + Comment + MinKernel). UNPROVEN -> PLAUSIBLE. Entri yang punya
+    "decision": {"status": "VERIFIED"} (keputusan pengguna) -> VERIFIED, juga dari OK.
+    VERIFIED hanya berarti terverifikasi statis, bukan tes hardware."""
+    if res["status"] not in ("UNPROVEN", "OK"):
         return
     got = {"0x%x" % kern.off_to_vaddr(o) for o in res["hits"]}
     for e in evidence:
         if (e["build"], e["comment"], e["min_kernel"]) == (build, p["Comment"], p["MinKernel"]):
-            if got == set(e["vaddrs"]):
-                res["status"] = "PLAUSIBLE"
-                res["notes"].append("bukti: %s | %s" % (", ".join(e["source"]), e["note"]))
-            else:
+            if got != set(e["vaddrs"]):
                 res["notes"].append("entri bukti ada tetapi vaddr berbeda: %s" % sorted(got ^ set(e["vaddrs"])))
+                return
+            dec = e.get("decision")
+            if dec and dec.get("status") == "VERIFIED":
+                res["status"] = "VERIFIED"
+                res["notes"].append("VERIFIED oleh %s (%s): %s" % (dec["by"], dec["date"], dec["scope"]))
+            elif res["status"] == "UNPROVEN":
+                res["status"] = "PLAUSIBLE"
+            res["notes"].append("bukti: %s | %s" % (", ".join(e["source"]), e["note"]))
             return
 
 

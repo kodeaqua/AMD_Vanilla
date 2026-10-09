@@ -10,7 +10,7 @@
   "source": [
    "osfmk/i386/cpuid.c:395-396"
   ],
-  "note": "shr edx,0x1a; inc edx = bitfield32(eax,31,26)+1 disimpan ke cpuid_cores_per_package; fungsi tanpa simbol (sub_3d5110 = cpuid_set_cache_info; loop cpuid(4) berisi eax=4 dari patch 5). Replace upstream/laobamac masih 0, bukan 6."
+  "note": "shr edx,0x1a; inc edx = bitfield32(eax,31,26)+1 disimpan ke cpuid_cores_per_package; fungsi tanpa simbol (sub_3d5110 = cpuid_set_cache_info; loop cpuid(4) berisi eax=4 dari patch 5). Replace upstream/laobamac = 0; work/work.plist = 6 (Ryzen 5 4500). Belum diputuskan VERIFIED."
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -23,7 +23,13 @@
   "source": [
    "osfmk/i386/commpage/commpage.c:393-395"
   ],
-  "note": "test eax,0x200 (ERMS) lalu rdmsr 0x1a0 (MISC_ENABLE) & 1 -> kHasENFSTRG. Setelah NOP, 'and eax,1' memakai sisa eax (leaf7.ebx bit0), jadi flag ENFSTRG bergantung FSGSBASE."
+  "note": "test eax,0x200 (ERMS) lalu rdmsr 0x1a0 (MISC_ENABLE) & 1 -> kHasENFSTRG. Setelah NOP, 'and eax,1' memakai sisa eax (leaf7.ebx bit0), jadi flag ENFSTRG bergantung FSGSBASE.",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -36,7 +42,13 @@
   "source": [
    "osfmk/i386/cpuid.c:385"
   ],
-  "note": "mov eax,4 (cpuid leaf 4) di awal loop cache; diganti 0x8000001d (AMD cache topology)."
+  "note": "mov eax,4 (cpuid leaf 4) di awal loop cache; diganti 0x8000001d (AMD cache topology).",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -49,7 +61,13 @@
   "source": [
    "osfmk/i386/cpuid.c:659"
   ],
-  "note": "wrmsr64(MSR_IA32_BIOS_SIGN_ID=0x8b, 0), di-inline ke _cpuid_set_info."
+  "note": "wrmsr64(MSR_IA32_BIOS_SIGN_ID=0x8b, 0), di-inline ke _cpuid_set_info.",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -62,7 +80,13 @@
   "source": [
    "osfmk/i386/cpuid.c:661-662"
   ],
-  "note": "rdmsr(0x8b)>>32 -> cpuid_microcode_version; edx diganti konstanta 0xba."
+  "note": "rdmsr(0x8b)>>32 -> cpuid_microcode_version; edx diganti konstanta 0xba.",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -75,7 +99,13 @@
   "source": [
    "osfmk/i386/cpuid.c:674"
   ],
-  "note": "rdmsr(0x17 PLATFORM_ID)>>50 & 7 -> cpuid_processor_flag; diganti dl=1."
+  "note": "rdmsr(0x17 PLATFORM_ID)>>50 & 7 -> cpuid_processor_flag; diganti dl=1.",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -88,7 +118,13 @@
   "source": [
    "osfmk/i386/lapic_native.c:421-423"
   ],
-  "note": "and eax,0xfc (LAPIC_VERSION_MASK); cmp eax,0x13; jbe -> panic 'Local APIC version'. cmp di-NOP: jbe hanya jalan bila (ver&0xfc)==0."
+  "note": "and eax,0xfc (LAPIC_VERSION_MASK); cmp eax,0x13; jbe -> panic 'Local APIC version'. cmp di-NOP: jbe hanya jalan bila (ver&0xfc)==0.",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -104,7 +140,13 @@
    "osfmk/i386/proc_reg.h:623-624",
    "osfmk/i386/i386_init.c:831-833"
   ],
-  "note": "rdmsr 0x198/0x199 (PERF_STS/CTL) untuk kdebug 0x05310258. Source publik: pstate_trace() KOSONG, jadi isi binary berbeda dari source (aturan 10). Satu kecocokan di _pstate_trace, dua di _i386_init (inline)."
+  "note": "rdmsr 0x198/0x199 (PERF_STS/CTL) untuk kdebug 0x05310258. Source publik: pstate_trace() KOSONG, jadi isi binary berbeda dari source (aturan 10). Satu kecocokan di _pstate_trace, dua di _i386_init (inline). EFEK SAMPING: Find 42 byte ikut menghapus 'mov edi,0x5310258; xor ecx,ecx; xor r8d,r8d', lalu kode lanjut ke 'pop rbp; jmp _kernel_debug_early' (ekor-panggilan) dengan edi/rsi/rdx/rcx/r8 berisi sisa register (debugid dan argumen sampah). Perilaku _kernel_debug_early dengan argumen itu belum dianalisis. Kecocokan di _pstate_trace (0x\u20263df2d4) tidak punya pemanggil rel32 langsung di __TEXT,__text (indeks 0 pemanggil ditemukan; pemanggil tidak langsung/kext tidak dikesampingkan); dua lainnya ada di _i386_init.",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -119,7 +161,13 @@
   "source": [
    "osfmk/kern/sched_prim.c:806-815"
   ],
-  "note": "ja menuju panic 'Non-monotonic time: last_dispatch ... ctime' (check_monotonic_time inline); target ja dibaca dari binary pada ketiganya. thread_invoke tanpa simbol (sub_2a6c30)."
+  "note": "ja menuju panic 'Non-monotonic time: last_dispatch ... ctime' (check_monotonic_time inline); target ja dibaca dari binary pada ketiganya. thread_invoke tanpa simbol (sub_2a6c30).",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -134,7 +182,13 @@
    "osfmk/kern/sched_prim.c:3024-3026",
    "osfmk/kern/sched_prim.c:3778-3780"
   ],
-  "note": "jb menuju panic 'Non-monotonic time: invoke at ..., runnable at' dan '... dispatch at ...'; offset last_made_runnable_time = +0x490 di build ini. Kecocokan ke-3 (0xfa45d, tidak terkait) hanya aman karena Count=2."
+  "note": "jb menuju panic 'Non-monotonic time: invoke at ..., runnable at' dan '... dispatch at ...'; offset last_made_runnable_time = +0x490 di build ini. Kecocokan ke-3 (0xfa45d, tidak terkait) hanya aman karena Count=2.",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  },
  {
   "build": "xnu-12377.161.15.700.19",
@@ -165,5 +219,24 @@
    "osfmk/i386/mtrr.c:693-712"
   ],
   "note": "Lokasi sesuai: rdmsr 0x277; and edx,0xff00ffff; or edx,0x10000 = pat &= ~(0xFF<<48); pat |= 1<<48. TAPI nilai pengganti adalah konstanta PAT penuh yang berbeda dari source (lihat notes), pilihan algrey/Shaneee ada di tangan pengguna."
+ },
+ {
+  "build": "xnu-12377.161.15.700.19",
+  "xnu_source_tag": "xnu-12377.121.6",
+  "comment": "Goldfish64, algrey | Bypass GenuineIntel check panic | 12.0+",
+  "min_kernel": "21.0.0",
+  "vaddrs": [
+   "0xffffff80003d46fe"
+  ],
+  "source": [
+   "osfmk/i386/cpuid.c:964"
+  ],
+  "note": "jne -> panic 'Unsupported CPU @cpuid.c:0x49f' (string terbaca dari binary); di _cpuid_set_info+0x123e (Base terbukti).",
+  "decision": {
+   "status": "VERIFIED",
+   "by": "pengguna",
+   "date": "2026-10-09",
+   "scope": "statis (byte + disassembly + source/binary); BUKAN tes hardware"
+  }
  }
 ]
