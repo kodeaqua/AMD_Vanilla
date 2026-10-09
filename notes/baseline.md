@@ -52,7 +52,9 @@ Dicatat di `notes/boot-ok.json` (kunci: hash isi patch, build kernel). Dipakai s
 yang **tidak**: PAT algrey (aktif di work), probeBusGated upstream `12.0+`.
 Akibat BOOT-OK pada patch bermasalah: patch 14 (NO-BASE) dan patch 10 (kemungkinan inert) juga ber-tag BOOT-OK, namun itu tidak menunjukkan mereka terpasang. Sistem boot tidak berarti patch 14 diterapkan.
 
-## 4. Usulan perubahan `work.plist` (BELUM DITERAPKAN, menunggu keputusan)
+## 4. Usulan perubahan `work.plist` — DITERAPKAN (2026-10-09, atas persetujuan pengguna)
+
+Setelah usulan 1 (`fix(pci)`) dan 2 (`feat(pat)`) diterapkan, `work/work.plist` sama persis dengan set live (27 patch, tidak ada selisih). Teks usulan di bawah dipertahankan sebagai catatan alasan.
 
 1. **probeBusGated**: ganti entri upstream tunggal dengan dua entri laobamac (disalin manual, bukan merge), sama dengan live. Alasan: live boot dengan itu; entri upstream `12.0+` memakai `e0 11 72 00 → 00 00 03 00` untuk seluruh Darwin 21–25, sedangkan laobamac memisahkan 26.0+ ke `e0 11 73 40 → 00 00 02 00`.
    Keterbatasan: **tidak bisa diverifikasi statis** (kext IOPCIFamily bukan kernel; tak ada salinannya di `kernels/`; aturan 2 hanya mengizinkan membaca `/System/Library/Kernels/kernel`). Status akan NOT-KERNEL + BOOT-OK, bukan VERIFIED. Bila Anda mau diverifikasi, salin binary kext (atau KC) ke folder repo dan beri tahu saya.
