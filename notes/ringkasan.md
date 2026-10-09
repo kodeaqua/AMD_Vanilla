@@ -39,8 +39,8 @@ Yang tidak berlaku di Darwin 25 (N/A): indeks 0–2, 9, 11, 13, 17, 21, 23, 24. 
 - Patch 10 dan 14 tidak diubah.
 
 ## Belum selesai / butuh Anda
-1. Log debug OpenCore (+ versi OpenCore): bukti patch 14, 10, dan probeBusGated benar-benar terpasang.
-2. Binary IOPCIFamily bila `probeBusGated` mau diverifikasi statis.
+1. Log debug OpenCore (+ versi OpenCore): bukti patch 14 dan 10 benar-benar terpasang (probeBusGated ditunda).
+2. ~~Binary IOPCIFamily untuk `probeBusGated`~~ — DITUNDA atas permintaan pengguna (2026-10-09); tetap NOT-KERNEL + BOOT-OK, tidak dikerjakan sekarang.
 3. Tes hardware per patch dan catat (normal/hang/panic) di `notes/`.
 4. Riset patch 10: cari tahu apakah ada gerbang leaf 7 lain di AMD pada Darwin 25; usul nonaktifkan bila tidak perlu.
 5. Patch 15: analisis `_kernel_debug_early` dengan argumen sampah.
